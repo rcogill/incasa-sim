@@ -53,7 +53,7 @@ class Nurse(object):
         end_time: (float) what time a nurse practitioner ends shift
     """
 
-    def __init__(self,id_number, location, busy=False,customer_finish_time=0,customers_served=0):
+    def __init__(self,id_number, location, start_time, end_time, restrictions=None, working=True, busy=False,customer_finish_time=0,customers_served=0):
         """Return a Nurse object"""
         self.id_number = id_number
         self.location = location
@@ -65,12 +65,26 @@ class Nurse(object):
         self.time_serving = []
         self.dispatch_time = []
         self.time_start_service = []
+        self.locs_visited = []
+        self.start_time = start_time
+        self.end_time = end_time
+        self.working = working
+        self.restrictions = restrictions
 
     def check_availability(self,current_time):
         """Check if nurse has finished serving current customer"""
         if self.busy==True:
             if current_time>self.customer_finish_time:
                 self.busy=False
+        return
+
+    def check_is_on_shift(self,current_time,service_time):
+        if self.start_time > current_time:
+            self.working = False
+        elif self.end_time < current_time + service_time:
+            self.working = False
+        else:
+            self.working = True
         return
 
     def __str__(self):
@@ -91,11 +105,12 @@ class Demand_node(object):
 
     """
 
-    def __init__(self, id_number, lon, lat, arrival_rate):
+    def __init__(self, id_number, lon, lat, zip, arrival_rate):
         """Return a Demand node object with required attributes"""
         self.id_number = id_number
         self.lon = lon
         self.lat = lat
+        self.zip = zip
         self.arrival_rate = arrival_rate
         #self.customer_list= []
 
