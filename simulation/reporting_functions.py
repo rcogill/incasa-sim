@@ -3,8 +3,9 @@ __author__ = 'maxbiggs'
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from estimating_demand import estimate_demand_at_node
 
-def time_varying_system_metrics(nurse_list,customer_list):
+def time_varying_system_metrics(nurse_list,customer_list,service_time,time_horizon):
     """This function collates and reports on how the state of simulation changes with time
     Metrics reported: # customers waiting, # customers being served, # nurses idle, # nurses travelling
     These metrics are visualized in plot over time horizon
@@ -40,14 +41,29 @@ def time_varying_system_metrics(nurse_list,customer_list):
 
     #Initial state has no customers and all nurses idle
     current_customers_waiting=0
-    current_nurses_idle=len(nurse_list)
+    #current_nurses_idle=len(nurse_list)
+    #for nurses working different shifts:
+    nurses_working = 0
+    list_nurses_working = []
+    for nurse in nurse_list:
+        nurse.check_is_on_shift(0,service_time)
+        if nurse.working is True:
+            nurses_working += 1
+            list_nurses_working.append(nurse)
+    current_nurses_idle = nurses_working
     current_customers_being_served=0
     current_nurses_travelling=0
 
     # loop through events and update the state of the system
     counter=0
-    for index,row in event_dataframe.iterrows():
 
+
+    for index,row in event_dataframe.iterrows():
+        time = row['event_times']
+        for nurse in nurse_list:
+            if nurse.start_time <= time and nurse not in list_nurses_working:
+                current_nurses_idle +=1
+                list_nurses_working.append(nurse)
         if row['event_categories'] == "arrival":
             current_customers_waiting+=1
         elif row['event_categories'] == "dispatch":
@@ -76,22 +92,28 @@ def time_varying_system_metrics(nurse_list,customer_list):
     plt.plot(event_dataframe.event_times,nurses_travelling,label="nurses travelling")
     plt.ylabel("number in system")
     plt.xlabel("event time")
+    plt.title("Simulation over " + str(time_horizon/60) + " hours")
     plt.legend(loc='best')
+    plt.show() #I added
 
-    plt.savefig('results/number_in_system.png')
+ #   plt.savefig('results/number_in_system.png')
     plt.close()
 
     # calculate how the wait time changes as a function of customer arrival time + visulaise
     cust_wait_times=[cust.wait_time for cust in customer_list]
     cust_arrival_times=[cust.arrival_time for cust in customer_list]
 
+    plt.clf() #I added
     plt.plot(cust_arrival_times,cust_wait_times,'ro',cust_arrival_times,cust_wait_times,'k')
     plt.ylabel("wait time")
     plt.xlabel("arrival time")
+    plt.title("Customer Wait Times")
+    plt.show() #I added
 
-    plt.savefig('results/cust_wait_times.png')
+ #   plt.savefig('results/cust_wait_times.png')
     plt.close()
 
+    #return service_begin_times
     return
 
 
@@ -112,6 +134,11 @@ def aggregate_system_metrics(nurse_list,customer_list):
     nurse_travel_time=[travel_time for nurse in nurse_list for travel_time in nurse.time_driving]
     nurse_service_time=[service_time for nurse in nurse_list for service_time in nurse.time_serving]
 
+    customer_wait_after = []
+    for cust in customer_list:
+        if cust.arrival_time > 120:
+            customer_wait_after.append(cust.wait_time)
+
     print("average_idle_time_nurse",np.mean(nurse_idle_time))
     print("average_travel_time_nurse",np.mean(nurse_travel_time))
     print("average_nurse_service_time",np.mean(nurse_service_time))
@@ -122,4 +149,28 @@ def aggregate_system_metrics(nurse_list,customer_list):
     print("max_customer_wait",np.max(customer_wait))
     print("average_customer_service_time",np.mean(customer_service_time))
 
+    return np.max(customer_wait)
+
+def visualize_variability_between_clinics(locations,start,stop,day):
+    """This function graphically reports the variability of demand between nodes through a day, given Minute Clinic data.
+    Inputs: locations (zip codes), start time, stop time, day (an int from 0 to 6 represent the days of the week from Sun-Sat)
+    Outputs: a graph showing the demand as a function of time amongst chosen locations"""
+    plt.figure()
+    for loc in locations:
+        customers, arrivals, clinics = estimate_demand_at_node(loc,start,stop)
+        for key in clinics.keys():
+            if clinics[key][0] == loc:
+                town = clinics[key][4]
+                state = clinics[key][3]
+        demand = np.array(customers[day])
+        arrival_times = np.array(arrivals[day])
+        plt.plot(arrival_times,demand,label=town + ', ' + state)
+    plt.xlabel('arrival time')
+    plt.ylabel('number of customers')
+    plt.legend(loc='best')
+    plt.title('Comparing customer demand')
+    plt.show()
+    plt.close()
     return
+
+#visualize_variability_between_clinics(['77056','78261','77479'],8,17,2)
